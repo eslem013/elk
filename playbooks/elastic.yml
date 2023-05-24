@@ -1,0 +1,44 @@
+---
+- name: Create group
+  hosts: elastic_nodes
+  become: true
+  tasks:
+  - name: Create the group 'elasticsearch'
+    ansible.builtin.group:
+      name: elasticsearch
+      gid: 2002
+
+- name: Create directory
+  hosts: elastic_nodes
+  tasks:
+  - name: Create directory '/elk'
+    ansible.builtin.file:
+      path: /elk
+      state: directory
+      owner: root
+      group: elasticsearch
+      mode: u=rwX,g=rwX,o-rwx
+
+# 200000000000 is 200000MB=200GB
+- name: Check free storage of directory
+  hosts: elastic_master_node
+  become: true
+  tasks:
+  - name: Check free storage of the mounted directory '/rbv/opt/elk'
+    ansible.builtin.assert:
+      that: item.size_total >= 200000000000
+      fail_msg:  "Not enough storage!"
+      success_msg: "Enough storage!"
+    loop: "{{ ansible_mounts }}"
+    loop_control:
+      label: "{{ item.device }}"
+    when: item.device == '{{ VAR }}'
+
+- name: Installation and Configuration of the service elasticsearch
+  hosts: elastic_nodes
+  gather_facts: true
+  become: true
+  roles:
+    - role: elastic
+      tags: elastic
+...
