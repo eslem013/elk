@@ -1,0 +1,17 @@
+---
+- name: Pre check for installation of elasticsearch
+  import_tasks: elastic_precheck.yml
+  tags: elastic_pre_check
+
+- name: Installation of elasticsearch
+  import_tasks: elastic_installation.yml
+  tags: elastic_installation
+
+- name: Configuration of Elasticsearch
+  import_tasks: elastic_config.yml
+  tags: elastic_config
+
+- name: Post check of elasticsearch
+  import_tasks: elastic_postinstall.yml
+  tags: elastic_postinstall
+...
