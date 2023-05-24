@@ -1,0 +1,19 @@
+---
+# Main Playbook for ELK Ansible Project
+
+- name: Main-playbook for filebeat installation
+  import_playbook: playbooks/filebeat.yml
+  tags: filebeat_playbook
+
+- name: Main-playbook for elasticsearch installation
+  import_playbook: playbooks/elastic.yml
+  tags: elastic_playbook
+
+- name: Main-playbook for kibana installation
+  import_playbook: playbooks/kibana.yml
+  tags: kibana_playbook
+
+- name: Main-playbook for logstash installation
+  import_playbook: playbooks/logstash.yml
+  tags: logstash_playbook
+...
