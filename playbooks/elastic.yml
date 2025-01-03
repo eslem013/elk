@@ -1,0 +1,15 @@
+---
+- name: Installation und Konfiguration des Dienstes elastic
+  hosts:
+    - "elk_{{ elk_env }}_dh"
+    - "elk_{{ elk_env }}_dw"
+    - "elk_{{ elk_env }}_mn"
+    - "elk_{{ elk_env }}_mv"
+    - "elk_{{ elk_env }}_mw"
+  become: true
+  force_handlers: true
+  roles:
+    - role: elastic
+      when: ansible_distribution == "RedHat"
+      tags: elastic
+...
