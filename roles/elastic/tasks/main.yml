@@ -1,0 +1,13 @@
+---
+- name: Preparation for elastic installation
+  import_tasks: elastic_prep.yml
+  tags: elastic_prep
+
+- name: elastic installation
+  import_tasks: elastic_installation.yml
+  tags: elastic_installation
+
+- name: elastic configuration
+  import_tasks: elastic_config.yml
+  tags: elastic_config
+...
