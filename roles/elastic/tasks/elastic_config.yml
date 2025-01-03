@@ -1,0 +1,254 @@
+---
+- name: Status of directory '/elk/backup'
+  ansible.builtin.stat:
+    path: /elk/backup
+  register: elk_backup
+
+- name: Set permissions on '/elk/backup', if exists
+  ansible.builtin.file:
+    path: /elk/backup
+    state: directory
+    owner: root
+    group: elasticsearch
+    mode: u=rwX,g=rwX,o-rwx
+  when: rbv_elk_backup.stat.exists
+
+- name: Create directory '/etc/elasticsearch/'
+  ansible.builtin.file:
+    path: /etc/elasticsearch
+    state: directory
+    owner: root
+    group: elasticsearch
+    mode: u=rwX,g=rX,o-rwx
+
+- name: Create directory '/etc/elasticsearch/certs'
+  ansible.builtin.file:
+    path: /etc/elasticsearch/certs
+    state: directory
+    owner: root
+    group: elasticsearch
+    mode: u=rwX,g=rX,o-rwx
+  tags: elastic_copy_certificates
+
+- name: Create configuration file '/etc/elasticsearch/elasticsearch.yml'
+  ansible.builtin.template:
+    src: elasticsearch.yml.j2
+    dest: /etc/elasticsearch/elasticsearch.yml
+    owner: root
+    group: elasticsearch
+    mode: u=rw,g=r,o-rwx
+  no_log: true
+  notify: "restart elasticsearch"
+  tags: elastic_update_configuration_file
+
+- name: Uncomment line in config file for inital installation
+  ansible.builtin.lineinfile:
+    path: /etc/elasticsearch/elasticsearch.yml
+    regexp: '^#cluster.initial_master_nodes'
+    line: 'cluster.initial_master_nodes: ["master-node-01"]'
+  tags:
+    - never
+
+- name: Copy certificate p12
+  ansible.builtin.copy:
+    dest: /etc/elasticsearch/certs/cert.p12
+    src: cert.p12
+    owner: root
+    group: elasticsearch
+    mode: u=rwX,g=rX,o-rwx
+
+- name: Copy certificate ca.cer
+  ansible.builtin.copy:
+    dest: /etc/elasticsearch/certs/ca.cer
+    src: ca.cer
+    owner: root
+    group: elasticsearch
+    mode: u=rwX,g=rX,o-rwx
+
+- name: Copy certificate fullchain.cer
+  ansible.builtin.copy:
+    dest: /etc/elasticsearch/certs/fullchain.cer
+    src: fullchain.cer
+    owner: root
+    group: elasticsearch
+    mode: u=rwX,g=rX,o-rwx
+  notify: "restart elasticsearch"
+  tags: elastic_copy_certificates
+
+- name: Delete file role_mapping.yml
+  ansible.builtin.file:
+    dest: /etc/elasticsearch/role_mapping.yml
+    state: absent
+
+- name: Delete automatically created certs in /etc/elasticsearch/certs
+  ansible.builtin.file:
+    path: /etc/elasticsearch/certs/{{ item }}
+    state: absent
+  with_items:
+    - http_ca.crt
+    - http.p12
+    - transport.p12
+
+- name: Copy file 'elasticsearch'
+  ansible.builtin.copy:
+    src: elasticsearch
+    dest: /etc/sysconfig/elasticsearch
+    owner: root
+    group: elasticsearch
+    mode: u=rw,g=r,o-rwx
+
+- name: Copy file 'roles.yml'
+  ansible.builtin.copy:
+    src: roles.yml
+    dest: /etc/elasticsearch/roles.yml
+    owner: root
+    group: elasticsearch
+    mode: u=rw,g=rw,o-rwx
+
+- name: Copy file elasticsearch.keystore
+  ansible.builtin.copy:
+    src: elasticsearch.keystore
+    dest: /etc/elasticsearch/elasticsearch.keystore
+    owner: root
+    group: elasticsearch
+    mode: u=rw,g=rw,o-rwx
+  notify: "restart elasticsearch"
+
+- name: start all handlers
+  meta: flush_handlers
+
+- name: 2 minutes break, so that the elastic cluster can start completely
+  ansible.builtin.pause:
+    minutes: 2
+
+- name: Set password for systemuser 'elastic'
+  ansible.builtin.expect:
+    command: /usr/share/elasticsearch/bin/elasticsearch-reset-password --url "https://{{ inventory_hostname }}:9200" -u elastic -i
+    responses:
+      '(?i)\[y\/N\]': 'y'
+      'Enter password for \[elastic\]:': "{{ elastic_system_pw }}"
+      'Re-enter password for \[elastic\]:': "{{ elastic_system_pw }}"
+  run_once: true
+  no_log: true
+
+- name: Set password for systemuser 'kibana_system'
+  ansible.builtin.expect:
+    command: /usr/share/elasticsearch/bin/elasticsearch-reset-password --url "https://{{ inventory_hostname }}:9200" -u kibana_system -i
+    responses:
+      '(?i)\[y\/N\]': 'y'
+      'Enter password for \[kibana_system\]:': "{{ kibana_system_pw }}"
+      'Re-enter password for \[kibana_system\]:': "{{ kibana_system_pw }}"
+  run_once: true
+  no_log: true
+
+- name: Status of systemuser 'elk_health'
+  ansible.builtin.lineinfile:
+    regexp: '^elk_health'
+    path: /etc/elasticsearch/users
+    state: absent
+  check_mode: true
+  register: elastic_elk_health_status
+
+- name: Create systemuser 'elk_health', if not exists
+  ansible.builtin.expect:
+    command: /usr/share/elasticsearch/bin/elasticsearch-users useradd elk_health -r elk_health
+    responses:
+      'Enter new password:': "{{ elk_health_pw }}"
+      'Retype new password:': "{{ elk_health_pw }}"
+  no_log: true
+  when: not elastic_elk_health_status.found
+
+- name: Change password of systemuser 'elk_health', if exists
+  ansible.builtin.expect:
+    command: /usr/share/elasticsearch/bin/elasticsearch-users passwd elk_health
+    responses:
+      'Enter new password:': "{{ elk_health_pw }}"
+      'Retype new password:': "{{ elk_health_pw }}"
+  no_log: true
+  when: elastic_elk_health_status.found
+
+- name: Status of systemuser 'kibana_health'
+  ansible.builtin.lineinfile:
+    regexp: "^kibana_health"
+    path: /etc/elasticsearch/users
+    state: absent
+  check_mode: true
+  register: elastic_kibana_health_status
+
+- name: Create systemuser 'kibana_health', if not exists
+  ansible.builtin.expect:
+    command: /usr/share/elasticsearch/bin/elasticsearch-users useradd kibana_health
+    responses:
+      'Enter new password:': "{{ kibana_health_pw }}"
+      'Retype new password:': "{{ kibana_health_pw }}"
+  no_log: true
+  when: not elastic_kibana_health_status.found
+
+- name:  Change password of systemuser 'kibana_health', if exists
+  ansible.builtin.expect:
+    command: /usr/share/elasticsearch/bin/elasticsearch-users passwd kibana_health
+    responses:
+      'Enter new password:': "{{ kibana_health_pw }}"
+      'Retype new password:': "{{ kibana_health_pw }}"
+  no_log: true
+  when: elastic_kibana_health_status.found
+
+- name: Status of systemuser 'logstash_internal'
+  ansible.builtin.lineinfile:
+    regexp: "^logstash_internal"
+    path: /etc/elasticsearch/users
+    state: absent
+  check_mode: true
+  register: elastic_logstash_internal_status
+
+- name: Create systemuser 'logstash_internal', if not exists
+  ansible.builtin.expect:
+    command: /usr/share/elasticsearch/bin/elasticsearch-users useradd logstash_internal -r logstash_writer
+    responses:
+      'Enter new password:': "{{ logstash_internal_pw }}"
+      'Retype new password:': "{{ logstash_internal_pw }}"
+  no_log: true
+  when: not elastic_logstash_internal_status.found
+
+- name: Change password of systemuser 'kibana_health', if exists
+  ansible.builtin.expect:
+    command: /usr/share/elasticsearch/bin/elasticsearch-users passwd logstash_internal
+    responses:
+      'Enter new password:': "{{ logstash_internal_pw }}"
+      'Retype new password:': "{{ logstash_internal_pw }}"
+  no_log: true
+  when: elastic_logstash_internal_status.found
+
+- name: Copy and activate license
+  block:
+  - name: Copy license
+    ansible.builtin.copy:
+      dest: /etc/elasticsearch/certs/license.json
+      src: license.json
+      owner: root
+      group: elasticsearch
+      mode: u=rw,g=r,o-rwx
+
+  - name: Activate license
+    ansible.builtin.command:
+      cmd: "curl -XPUT -k -u elastic:{{ elastic_system_pw }} 'https://{{ inventory_hostname }}:9200/_license?acknowledge=true' -H 'Content-Type: application/json' -d @/etc/elasticsearch/certs/license.json"
+    run_once: true
+    no_log: true
+
+  # - name: Activate license
+  #   ansible.bultin.uri:
+  #     url: "https://{{ inventory_hostname }}:9200/_license
+  #     url_username: elastic
+  #     url_password: "{{ elastic_system_pw }}"
+  #     method: PUT
+  #     body_format: json
+  #     body:
+  #   run_once: true
+  tags: elastic_license
+
+- name: Comment the line for inital installation in configuration file
+  ansible.builtin.lineinfile:
+    path: /etc/elasticsearch/elasticsearch.yml
+    regexp: '^cluster.initial_master_nodes'
+    line: '#cluster.initial_master_nodes: ["master-node-01"]'
+...
