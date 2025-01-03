@@ -1,0 +1,4 @@
+---
+- name: Import handler für systemd commands
+  ansible.builtin.import_tasks: handler_systemd.yml
+...
