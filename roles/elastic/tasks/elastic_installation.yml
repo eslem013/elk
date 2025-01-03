@@ -1,0 +1,19 @@
+---
+- name: Activate elastic repo
+  ansible.builtin.shell:
+    cmd: subscription-manager repos --enable=Linux-x86_ThirdParty-Elastic-EL8_EL8-Elastic
+
+- name: Install elasticsearch
+  ansible.builtin.dnf:
+    name: elasticsearch-{{ elastic_version }}
+    allow_downgrade: true
+    state: present
+    update_cache: true
+  notify:
+    - "enable elasticsearch"
+    - "restart elasticsearch"
+
+- name: Deactivate elastic repo
+  ansible.builtin.shell:
+    cmd: subscription-manager repos --disable=Linux-x86_ThirdParty-Elastic-EL8_EL8-Elastic
+...
