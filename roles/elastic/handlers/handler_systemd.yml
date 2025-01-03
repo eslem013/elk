@@ -1,0 +1,71 @@
+---
+- name: Activate service elasticsearch
+  ansible.builtin.systemd:
+    name: elasticsearch
+    enabled: true
+    daemon_reload: true
+  listen: "enable elasticsearch"
+
+- name: Restart service elasticsearch
+  ansible.builtin.systemd:
+    name: elasticsearch
+    state: restarted
+    daemon_reload: true
+  listen: "restart elasticsearch"
+
+- name: Activate service filebeat
+  ansible.builtin.systemd:
+    name: filebeat
+    enabled: true
+    daemon_reload: true
+  listen: "enable filebeat"
+
+- name: Restart service filebeat
+  ansible.builtin.systemd:
+    name: filebeat
+    state: restarted
+    daemon_reload: true
+  listen: "restart filebeat"
+
+- name: Activate service kibana
+  ansible.builtin.systemd:
+    name: kibana
+    enabled: true
+    daemon_reload: true
+  listen: "enable kibana"
+
+- name: Restart service kibana
+  ansible.builtin.systemd:
+    name: kibana
+    state: restarted
+    daemon_reload: true
+  listen: "restart kibana"
+
+- name: Activate service logstash
+  ansible.builtin.systemd:
+    name: logstash
+    enabled: true
+    daemon_reload: true
+  listen: "enable logstash"
+
+- name: Restart service logstash
+  ansible.builtin.systemd:
+    name: logstash
+    state: restarted
+    daemon_reload: true
+  listen: "restart logstash"
+
+- name: Restart service networker
+  ansible.builtin.systemd:
+    name: networker
+    state: restarted
+    daemon_reload: true
+  listen: "restart networker"
+
+- name: Restart service openFT
+  ansible.builtin.systemd:
+    name: openFT
+    state: restarted
+    daemon_reload: true
+  listen: "restart openFT"
+...
